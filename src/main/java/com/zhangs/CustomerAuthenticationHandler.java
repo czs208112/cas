@@ -1,6 +1,8 @@
 package com.zhangs;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jasig.cas.adaptors.jdbc.AbstractJdbcUsernamePasswordAuthenticationHandler;
+import org.jasig.cas.authentication.AccountDisabledException;
 import org.jasig.cas.authentication.HandlerResult;
 import org.jasig.cas.authentication.PreventedException;
 import org.jasig.cas.authentication.UsernamePasswordCredential;
@@ -11,13 +13,14 @@ import javax.security.auth.login.AccountNotFoundException;
 import javax.security.auth.login.FailedLoginException;
 import javax.validation.constraints.NotNull;
 import java.security.GeneralSecurityException;
+import java.util.Map;
 
 
-public class QueryDatabaseAuthenticationHandler extends AbstractJdbcUsernamePasswordAuthenticationHandler {
+public class CustomerAuthenticationHandler extends AbstractJdbcUsernamePasswordAuthenticationHandler {
     @NotNull
     private String sql;
 
-    public QueryDatabaseAuthenticationHandler() {
+    public CustomerAuthenticationHandler() {
     }
 
     protected final HandlerResult authenticateUsernamePasswordInternal(UsernamePasswordCredential credential) throws GeneralSecurityException, PreventedException {
@@ -28,11 +31,15 @@ public class QueryDatabaseAuthenticationHandler extends AbstractJdbcUsernamePass
         System.out.println("======= sql:(" + this.sql + ")");
 
         try {
-            String dbPassword = (String) this.getJdbcTemplate().queryForObject(this.sql, String.class, new Object[]{username});
-            System.err.println("++++++ dbPassword:(" + dbPassword.trim() + ")");
-            if (!dbPassword.trim().equals(encryptedPassword)) {
+            Map<String, Object> userMap = this.getJdbcTemplate().queryForMap(this.sql, username);
+
+            System.err.println("++++++ dbPassword:(" + userMap.get("password") + ")");
+            if (null == userMap || !userMap.get("password").equals(encryptedPassword)) {
                 System.err.println("Password not match.");
                 throw new FailedLoginException("Password does not match value on record.");
+            }
+            if (userMap.get("isenabled").toString().trim().equals("0")) {
+                throw new AccountDisabledException("Account does locked.");
             }
         } catch (IncorrectResultSizeDataAccessException var5) {
             if (var5.getActualSize() == 0) {
